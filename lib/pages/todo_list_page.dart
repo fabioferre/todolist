@@ -1,3 +1,4 @@
+import 'package:curso/repositories/todo_repository.dart';
 import 'package:flutter/material.dart';
 
 import '../models/todo.dart';
@@ -12,7 +13,20 @@ class TodoListPage extends StatefulWidget {
 
 class _TodoListPageState extends State<TodoListPage> {
   final TextEditingController todoController = TextEditingController();
+  final TodoRepository todoRepository = TodoRepository();
   List<Todo> todos = [];
+  String? errorText;
+
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+    todoRepository.getTodoList().then((value) {
+      setState(() {
+        todos = value;
+      });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,10 +43,10 @@ class _TodoListPageState extends State<TodoListPage> {
                   Expanded(
                     child: TextField(
                       controller: todoController,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        labelText: 'Adicione uma tarefa',
-                      ),
+                      decoration: InputDecoration(
+                          border: const OutlineInputBorder(),
+                          labelText: 'Adicione uma tarefa',
+                          errorText: errorText),
                     ),
                   ),
                   const SizedBox(
@@ -41,10 +55,20 @@ class _TodoListPageState extends State<TodoListPage> {
                   ElevatedButton(
                     onPressed: () {
                       String text = todoController.text;
+                      if (text.isEmpty) {
+                        setState(() {
+                          errorText = 'O titulo não pode ser vazio';
+                        });
+                        return;
+                      }
                       setState(() {
-                        Todo newTodo = Todo(title: text, dateTime: DateTime.now());
+                        Todo newTodo =
+                            Todo(title: text, dateTime: DateTime.now());
                         todos.add(newTodo);
+                        errorText = null;
                       });
+                      todoController.clear();
+                      todoRepository.saveTodoList(todos);
                     },
                     style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
@@ -60,9 +84,10 @@ class _TodoListPageState extends State<TodoListPage> {
               Flexible(
                 child: ListView(
                   shrinkWrap: true,
-                  children: [for (Todo todo in todos)
-
-                    TodoListItem(todo: todo,)],
+                  children: [
+                    for (Todo todo in todos)
+                      TodoListItem(todo: todo, onDelete: onDelete)
+                  ],
                 ),
               ),
               const SizedBox(
@@ -71,11 +96,12 @@ class _TodoListPageState extends State<TodoListPage> {
               Row(
                 children: [
                   Expanded(
-                    child: Text('Você possui ${todos.length} Tarefas Pendentes'),
+                    child:
+                        Text('Você possui ${todos.length} Tarefas Pendentes'),
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton(
-                    onPressed: () {},
+                    onPressed: removeAll,
                     style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
                         padding: const EdgeInsets.all(18)),
@@ -89,5 +115,29 @@ class _TodoListPageState extends State<TodoListPage> {
       ),
     );
   }
-}
 
+  onDelete(Todo todo) {
+    setState(() {
+      todos.remove(todo);
+    });
+    todoRepository.saveTodoList(todos);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Tarefa ${todo.title} foi removida com sucesso'),
+      action: SnackBarAction(
+        label: 'Desfazer',
+        onPressed: () {
+          setState(() {
+            todos.add(todo);
+          });
+        },
+      ),
+    ));
+  }
+
+  removeAll() {
+    setState(() {
+      todos = [];
+    });
+    todoRepository.saveTodoList(todos);
+  }
+}
